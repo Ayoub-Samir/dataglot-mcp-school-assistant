@@ -1,11 +1,11 @@
 # Claude Desktop setup on macOS
 
-Claude Desktop is the optional language model and Text-to-SQL client for this
-project. The completed seven-analysis dashboard is already available from the
-versioned registry and does not require Claude at runtime. Connect Claude when
-you want to ask new natural-language questions or deliberately regenerate a
-saved analysis. The project does not use an Anthropic API key or any other LLM
-API.
+Claude Desktop is the language-model client for this project's primary
+interactive Text-to-SQL workflow and is required when users want to ask new
+natural-language questions. The completed seven-analysis dashboard is already
+available from the versioned registry and does not require Claude at runtime.
+Claude can also be used to deliberately regenerate a saved analysis. The project
+does not use an Anthropic API key or any other LLM API.
 
 ## Prerequisites
 

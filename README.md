@@ -1,27 +1,66 @@
 # DataGlot MCP School Assistant
 
-A natural-language analytics system that exposes federated PostgreSQL and MySQL data through DataGlot and MCP, enabling Claude Desktop to perform Text-to-SQL over distributed data sources and register reusable school-management analytics.
+An AI-powered conversational Text-to-SQL system that lets users ask Claude
+Desktop questions about school data federated across PostgreSQL and MySQL.
+Claude generates analytical SQL dynamically, the custom MCP server validates and
+executes it through DataGlot, and Claude presents the result to the user.
+
+The project has two essential deliverables:
+
+1. **Claude-powered conversational Text-to-SQL:** users ask natural-language
+   questions and receive answers produced from live federated queries.
+2. **School Management Dashboard:** Streamlit visualizes seven analytical queries
+   originally generated, validated, and registered through the same Claude → MCP
+   workflow.
 
 Claude Desktop is the language model. This project does not call an OpenAI, Anthropic, or other LLM API and requires no model API key.
 
-## Architecture
+## Architecture and core workflows
 
-Dynamic conversational analytics:
+### 1. Claude-powered conversational Text-to-SQL
 
-```text
-User -> Claude Desktop -> MCP (stdio) -> MCP server -> DataGlot
-                                                     |-> PostgreSQL
-                                                     \-> MySQL
-```
-
-Registered dashboard analytics:
+Claude Desktop is essential for interactive natural-language analytics. It uses
+the MCP tools to inspect the governed semantic context, generate SQL for the
+user's question, execute the query through DataGlot, and explain the returned
+result.
 
 ```text
-Claude-generated SQL -> MCP validation/registration -> JSON registry
-Streamlit -> MCP (Streamable HTTP) -> saved validated SQL -> DataGlot -> both sources
+User question -> Claude Desktop (generates SQL) -> MCP server
+              -> DataGlot -> PostgreSQL/MySQL
+PostgreSQL/MySQL -> DataGlot -> MCP server -> Claude response
 ```
 
-The MCP server has one query connection: DataGlot's PostgreSQL-wire endpoint. It never connects directly to either source. Streamlit has no database driver or SQL and communicates only with the MCP service.
+For example, a user can ask Claude:
+
+> Which department has the lowest average final score, and how many students
+> belong to that department?
+
+Claude obtains the schema and business rules from MCP, generates a read-only
+federated query, sends it through MCP and DataGlot, and returns the result with
+the SQL it used. The query is generated for that question rather than selected
+from a fixed list.
+
+### 2. Registered School Management Dashboard
+
+Claude also generated and registered seven reusable management analyses through
+MCP. The Streamlit dashboard executes those saved definitions through the same
+governed data path:
+
+```text
+Claude-generated SQL -> MCP validation and registration -> JSON registry
+JSON registry -> Streamlit Dashboard -> MCP -> DataGlot -> PostgreSQL/MySQL
+PostgreSQL/MySQL -> DataGlot -> MCP -> Streamlit charts and tables
+```
+
+The dashboard can run without Claude Desktop because the verified definitions
+are already registered. It displays those seven registered analyses; it does not
+automatically visualize arbitrary one-off questions asked during a Claude
+conversation. A new analysis appears in the dashboard only when it is explicitly
+validated and registered through the MCP dashboard workflow.
+
+The MCP server has one query connection: DataGlot's PostgreSQL-wire endpoint. It
+never connects directly to either source. Streamlit has no database driver or
+embedded analytical SQL and communicates only with the MCP service.
 
 ## Data model
 
@@ -33,7 +72,7 @@ The MCP server has one query connection: DataGlot's PostgreSQL-wire endpoint. It
 
 The committed sample data is deterministic with seed `20260924` and contains Fall and Spring records for academic year 2024-2025.
 
-## Completed dashboard
+## Registered dashboard analyses
 
 The repository includes the completed seven-analysis registry at
 [`data/dashboard_analyses.json`](data/dashboard_analyses.json). These definitions
@@ -46,6 +85,16 @@ and `registration_method: "mcp_tool"` provenance. See
 On startup, Streamlit asks MCP to execute the saved definitions. MCP revalidates
 each query and sends it through DataGlot, so the completed dashboard is available
 without connecting Claude Desktop or calling any LLM API.
+
+The dashboard contains:
+
+- Overview KPIs
+- Department Performance
+- Grade Distribution
+- Courses Needing Attention
+- Full Course Performance
+- At-Risk Students
+- Top Students
 
 ## MCP tools
 
@@ -100,29 +149,24 @@ Default loopback-only host ports:
 
 The defaults intentionally differ from the related standalone dashboard project, and Compose uses the isolated project name `dataglot-mcp-school-assistant`.
 
-## Optional Claude Desktop integration
+## Claude Desktop — AI Text-to-SQL Integration
 
-The dashboard does not require Claude Desktop at runtime. Connect it when you
-want to ask arbitrary natural-language questions, inspect generated SQL, or
-replace a saved analysis through the MCP workflow. Follow
+Claude Desktop is required for the project's interactive conversational
+Text-to-SQL workflow. Connect it to ask arbitrary natural-language questions,
+inspect dynamically generated SQL, or deliberately register or replace a saved
+dashboard analysis. The already-registered dashboard remains independently
+usable when Claude Desktop is not running.
+
+Follow
 [docs/CLAUDE_DESKTOP_SETUP.md](docs/CLAUDE_DESKTOP_SETUP.md). On macOS, the
 recommended configuration invokes Docker Desktop directly and starts the stdio
 MCP process with `docker exec -i`, avoiding launcher access through
 privacy-protected project folders. `scripts/run_mcp_claude.sh` provides the same
 transport for terminal testing and keeps logs off protocol stdout.
 
-The included registry already contains:
-
-- Overview KPIs
-- Department Performance
-- Grade Distribution
-- Courses Needing Attention
-- Full Course Performance
-- At-Risk Students
-- Top Students
-
 Claude generates new SQL for conversational questions at conversation time.
-The optional workflow in
+These one-off results are returned in the Claude conversation and are not
+automatically added to the dashboard. The separate registration workflow in
 [docs/DASHBOARD_BOOTSTRAP_WITH_CLAUDE.md](docs/DASHBOARD_BOOTSTRAP_WITH_CLAUDE.md)
 documents how the saved definitions were produced and how to regenerate them if
 desired. Dashboard SQL is generated once, validated and saved through MCP, and
@@ -171,7 +215,7 @@ services are running.
 
 ## Limitations
 
-- Claude Desktop configuration is optional, host-specific, and must be completed locally before conversational Text-to-SQL tools can be used from Claude.
+- Claude Desktop configuration is host-specific. It is required for interactive conversational Text-to-SQL but not for viewing the already-registered dashboard analyses.
 - The dashboard currently renders registered whole-dataset analyses; department and semester parameterized filters are not exposed. This avoids implying that an unsafe or ineffective filter exists.
 - DataGlot 0.5.2 snapshots source metadata when catalogs start. Restart DataGlot after adding source tables.
 - Query cancellation depends on DataGlot's PG-wire cancellation behavior and is therefore best-effort; result-size bounding is enforced independently.
