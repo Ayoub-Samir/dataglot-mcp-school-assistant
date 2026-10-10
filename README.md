@@ -5,7 +5,7 @@ Desktop questions about school data federated across PostgreSQL and MySQL.
 Claude generates analytical SQL dynamically, the custom MCP server validates and
 executes it through DataGlot, and Claude presents the result to the user.
 
-The project has two essential deliverables:
+The project has two main parts:
 
 1. **Claude-powered conversational Text-to-SQL:** users ask natural-language
    questions and receive answers produced from live federated queries.
@@ -13,16 +13,16 @@ The project has two essential deliverables:
    originally generated, validated, and registered through the same Claude → MCP
    workflow.
 
-Claude Desktop is the language model. This project does not call an OpenAI, Anthropic, or other LLM API and requires no model API key.
+Claude Desktop provides the language model interface. The project does not call
+an OpenAI, Anthropic, or other LLM API and requires no model API key.
 
 ## Architecture and core workflows
 
 ### 1. Claude-powered conversational Text-to-SQL
 
-Claude Desktop is essential for interactive natural-language analytics. It uses
-the MCP tools to inspect the governed semantic context, generate SQL for the
-user's question, execute the query through DataGlot, and explain the returned
-result.
+Claude Desktop handles interactive natural-language analytics. It uses the MCP
+tools to inspect the available schema and business rules, generate SQL for the
+user's question, execute the query through DataGlot, and explain the result.
 
 ```text
 User question -> Claude Desktop (generates SQL) -> MCP server
@@ -35,16 +35,16 @@ For example, a user can ask Claude:
 > Which department has the lowest average final score, and how many students
 > belong to that department?
 
-Claude obtains the schema and business rules from MCP, generates a read-only
-federated query, sends it through MCP and DataGlot, and returns the result with
-the SQL it used. The query is generated for that question rather than selected
-from a fixed list.
+For this request, Claude reads the schema and business rules exposed by MCP,
+writes a read-only federated query, and sends it through MCP and DataGlot. It
+then returns the result with the SQL it used. The query is generated for the
+question rather than selected from a fixed list.
 
 ### 2. Registered School Management Dashboard
 
 Claude also generated and registered seven reusable management analyses through
 MCP. The Streamlit dashboard executes those saved definitions through the same
-governed data path:
+query path:
 
 ```text
 Claude-generated SQL -> MCP validation and registration -> JSON registry
@@ -58,9 +58,9 @@ automatically visualize arbitrary one-off questions asked during a Claude
 conversation. A new analysis appears in the dashboard only when it is explicitly
 validated and registered through the MCP dashboard workflow.
 
-The MCP server has one query connection: DataGlot's PostgreSQL-wire endpoint. It
-never connects directly to either source. Streamlit has no database driver or
-embedded analytical SQL and communicates only with the MCP service.
+The MCP server connects only to DataGlot's PostgreSQL-wire endpoint, never
+directly to either source. Streamlit has no database driver or embedded
+analytical SQL and communicates only with the MCP service.
 
 ## Data model
 
@@ -74,17 +74,17 @@ The committed sample data is deterministic with seed `20260924` and contains Fal
 
 ## Registered dashboard analyses
 
-The repository includes the completed seven-analysis registry at
-[`data/dashboard_analyses.json`](data/dashboard_analyses.json). These definitions
-were generated and registered through a real Claude Desktop MCP Text-to-SQL
-session; they are not SQL embedded in Streamlit. Each saved entry retains its
-requirement, normalized SQL, verification metadata, source tables, timestamp,
-and `registration_method: "mcp_tool"` provenance. See
+The repository includes the seven-analysis registry at
+[`data/dashboard_analyses.json`](data/dashboard_analyses.json). Claude Desktop
+generated and registered these definitions through MCP during a Text-to-SQL
+session; Streamlit does not embed them. Each saved entry retains its requirement,
+normalized SQL, verification metadata, source tables, timestamp, and
+`registration_method: "mcp_tool"` provenance. See
 [`data/README.md`](data/README.md) for the registry lifecycle.
 
 On startup, Streamlit asks MCP to execute the saved definitions. MCP revalidates
-each query and sends it through DataGlot, so the completed dashboard is available
-without connecting Claude Desktop or calling any LLM API.
+each query and sends it through DataGlot, so the dashboard works without a live
+Claude Desktop connection or an LLM API call.
 
 The dashboard contains:
 
@@ -111,7 +111,7 @@ The same server definition is exposed over stdio for Claude Desktop and Streamab
 
 ## SQL safety
 
-The query path applies defense in depth:
+The query path uses several safeguards:
 
 - SQLGlot parses exactly one PostgreSQL-compatible statement.
 - Only SELECT and read-only WITH queries are accepted.
@@ -122,11 +122,13 @@ The query path applies defense in depth:
 - Errors are bounded and scrubbed before tool responses.
 - DataGlot source credentials belong to SELECT-only PostgreSQL and MySQL users.
 
-This is a local analytical safety model, not a claim of production-grade sandboxing. The SQL parser is not the sole boundary; source permissions remain read-only even if validation were bypassed.
+These controls are intended for local analytical use, not as a production
+sandbox. The SQL parser is not the only boundary: source permissions remain
+read-only even if validation is bypassed.
 
 ## Start
 
-Docker Desktop or Docker Engine with Compose v2 is the only application-stack prerequisite.
+You only need Docker Desktop or Docker Engine with Compose v2.
 
 ```bash
 git clone https://github.com/Ayoub-Samir/dataglot-mcp-school-assistant.git
@@ -147,25 +149,25 @@ Default loopback-only host ports:
 | MCP Streamable HTTP | 18000 |
 | Streamlit | 8502 |
 
-The defaults intentionally differ from the related standalone dashboard project, and Compose uses the isolated project name `dataglot-mcp-school-assistant`.
+Compose uses the project name `dataglot-mcp-school-assistant` to keep its
+containers, network, and volumes isolated from other Compose projects.
 
 ## Claude Desktop — AI Text-to-SQL Integration
 
-Claude Desktop is required for the project's interactive conversational
-Text-to-SQL workflow. Connect it to ask arbitrary natural-language questions,
-inspect dynamically generated SQL, or deliberately register or replace a saved
-dashboard analysis. The already-registered dashboard remains independently
-usable when Claude Desktop is not running.
+Claude Desktop is required for interactive conversational Text-to-SQL. Connect
+it to ask arbitrary natural-language questions, inspect generated SQL, or
+register or replace a saved dashboard analysis. The dashboard continues to work
+without Claude Desktop because its seven queries are already registered.
 
-Follow
+For setup instructions, see
 [docs/CLAUDE_DESKTOP_SETUP.md](docs/CLAUDE_DESKTOP_SETUP.md). On macOS, the
 recommended configuration invokes Docker Desktop directly and starts the stdio
 MCP process with `docker exec -i`, avoiding launcher access through
 privacy-protected project folders. `scripts/run_mcp_claude.sh` provides the same
 transport for terminal testing and keeps logs off protocol stdout.
 
-Claude generates new SQL for conversational questions at conversation time.
-These one-off results are returned in the Claude conversation and are not
+Claude generates SQL for each conversational request. One-off results are
+returned in the Claude conversation and are not
 automatically added to the dashboard. The separate registration workflow in
 [docs/DASHBOARD_BOOTSTRAP_WITH_CLAUDE.md](docs/DASHBOARD_BOOTSTRAP_WITH_CLAUDE.md)
 documents how the saved definitions were produced and how to regenerate them if
@@ -186,9 +188,9 @@ With the stack healthy, run the live MCP test:
 docker compose exec -T mcp python tests/integration_mcp.py
 ```
 
-The live integration test is read-only with respect to the completed registry.
-It verifies all seven saved analyses, federation, result limits, and rejection of
-unsafe SQL without replacing or deleting registered definitions.
+The live integration test does not modify the registry. It verifies all seven
+saved analyses, federation, result limits, and rejection of unsafe SQL without
+replacing or deleting registered definitions.
 
 Clean-start validation removes only this project's containers, network, and database volumes:
 
@@ -216,10 +218,10 @@ services are running.
 ## Limitations
 
 - Claude Desktop configuration is host-specific. It is required for interactive conversational Text-to-SQL but not for viewing the already-registered dashboard analyses.
-- The dashboard currently renders registered whole-dataset analyses; department and semester parameterized filters are not exposed. This avoids implying that an unsafe or ineffective filter exists.
+- The dashboard renders registered whole-dataset analyses; department and semester filters are not implemented.
 - DataGlot 0.5.2 snapshots source metadata when catalogs start. Restart DataGlot after adding source tables.
-- Query cancellation depends on DataGlot's PG-wire cancellation behavior and is therefore best-effort; result-size bounding is enforced independently.
-- The Streamable HTTP MCP endpoint has no application-level authentication. Compose binds it to `127.0.0.1` for local use; do not expose it to an untrusted network without an appropriate authenticated security layer.
+- Query cancellation depends on DataGlot's PG-wire cancellation behavior and is best-effort; result-size limits are enforced separately.
+- The Streamable HTTP MCP endpoint has no application-level authentication. Compose binds it to `127.0.0.1` for local use; do not expose it to an untrusted network without adding authentication and TLS.
 - Local development credentials are visible in Compose and are not suitable for production.
 
 The project uses pinned MCP Python SDK `2.2.0` and DataGlot `0.5.2` at the tested image digest. No Claude configuration, API key, token, or `.env` file is included.

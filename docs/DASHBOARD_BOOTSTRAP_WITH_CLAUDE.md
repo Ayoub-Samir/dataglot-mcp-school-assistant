@@ -1,14 +1,15 @@
 # Optional: regenerate dashboard analyses with Claude Desktop
 
-The repository already includes all seven genuinely Claude-generated definitions
-in `data/dashboard_analyses.json`, so a fresh clone starts with a populated
-dashboard. This document records the MCP Text-to-SQL workflow used to create
-them and can be used to regenerate an analysis deliberately. Streamlit reuses
-saved SQL through MCP and does not call Claude on refresh.
+The repository already includes all seven definitions generated and registered
+through Claude Desktop in `data/dashboard_analyses.json`, so a fresh clone starts
+with a populated dashboard. This document records the MCP Text-to-SQL workflow
+used to create them. Use these steps when you intentionally want to regenerate
+an analysis. Streamlit reuses saved SQL through MCP and does not call Claude on
+refresh.
 
 Registering an existing analysis ID atomically replaces its runtime definition.
-Commit or otherwise preserve the current registry before experimenting if you
-want to retain the included snapshot exactly.
+Commit or back up the current registry before experimenting if you want to keep
+the included snapshot unchanged.
 
 Before starting, confirm that Claude can see the DataGlot School Assistant tools and run:
 
@@ -20,7 +21,7 @@ Register analyses in the order below. For every prompt, Claude should generate S
 
 > Using the available DataGlot MCP tools, generate and register the `overview` dashboard analysis. It must return exactly one row with `total_students`, `total_courses`, `total_grade_records`, `average_final_score`, and `pass_percentage`. Calculate final score as 40% midterm plus 60% final exam and pass at 60. Use visualization `kpi`, validate the query by executing it, and register it only after the returned columns and values are correct.
 
-Expected regression values for the unchanged sample dataset are approximately 1,000 students, 40 courses, 6,000 grade records, average score 70.49, and pass rate 75.08%. These are checks, not values to hard-code.
+For the unchanged sample dataset, expect approximately 1,000 students, 40 courses, 6,000 grade records, an average score of 70.49, and a pass rate of 75.08%. Use these values for verification, not as hard-coded results.
 
 ## 2. Department Performance
 
@@ -52,7 +53,7 @@ Ask Claude:
 
 > Call `list_dashboard_analyses` and verify that all seven required IDs are registered and that no dashboard contract remains missing. Then execute each registered analysis once through MCP and report any error or unexpected column.
 
-Open [http://localhost:8502](http://localhost:8502), click **Refresh analyses**, and compare the populated dashboard with the expected semantics above.
+Open [http://localhost:8502](http://localhost:8502), click **Refresh analyses**, and confirm that the dashboard matches the results described above.
 
 If an analysis is incorrect, ask Claude to regenerate and register the same ID;
 registration replaces the previous definition atomically. To remove one

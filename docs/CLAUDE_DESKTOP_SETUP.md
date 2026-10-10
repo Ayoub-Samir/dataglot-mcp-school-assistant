@@ -1,11 +1,10 @@
 # Claude Desktop setup on macOS
 
-Claude Desktop is the language-model client for this project's primary
-interactive Text-to-SQL workflow and is required when users want to ask new
-natural-language questions. The completed seven-analysis dashboard is already
-available from the versioned registry and does not require Claude at runtime.
-Claude can also be used to deliberately regenerate a saved analysis. The project
-does not use an Anthropic API key or any other LLM API.
+Claude Desktop provides the conversational Text-to-SQL interface and is required
+to ask new natural-language questions. The seven-analysis dashboard is backed by
+the versioned registry and does not require Claude at runtime. You can also use
+Claude to regenerate a saved analysis. The project does not use an Anthropic API
+key or any other LLM API.
 
 ## Prerequisites
 
@@ -29,7 +28,7 @@ dashboard registry as the HTTP MCP service.
 
 ## Add the local MCP server
 
-Claude Desktop's developer-defined MCP configuration on macOS is:
+Claude Desktop stores its MCP configuration on macOS at:
 
 ```text
 ~/Library/Application Support/Claude/claude_desktop_config.json
@@ -60,7 +59,10 @@ Quit Claude Desktop completely. Merge the following entry into the existing JSON
 }
 ```
 
-This command avoids asking Claude Desktop or a child shell to open a launcher under a macOS privacy-protected folder such as Documents. It also avoids relying on Claude Desktop's `PATH`. No project path, database password, or API key belongs in this configuration.
+This direct Docker command avoids opening a launcher script inside a macOS
+privacy-protected folder such as Documents. It also does not depend on Claude
+Desktop's `PATH`. Do not add a project path, database password, or API key to
+this configuration.
 
 If Docker Desktop is installed somewhere other than `/Applications`, set `command` to the absolute path reported by `command -v docker` after resolving any symbolic link. The command must be executable by Claude Desktop.
 
@@ -70,7 +72,9 @@ The repository launcher remains available for terminal testing:
 ./scripts/run_mcp_claude.sh
 ```
 
-It uses the same `docker exec -i` transport, but it is not the recommended Claude configuration when the repository is inside Documents because macOS may prevent Claude's helper process from opening the script.
+The script uses the same `docker exec -i` transport. When the repository is
+inside Documents, prefer the direct Docker configuration because macOS may block
+Claude's helper process from opening the script.
 
 ## Confirm the connection
 
@@ -85,9 +89,9 @@ It uses the same `docker exec -i` transport, but it is not the recommended Claud
 
    > Using the DataGlot School Assistant MCP tools, calculate how many students belong to each department. Generate one read-only federated SQL query, execute it through DataGlot, and show the SQL and result.
 
-Successful automated tests confirm the direct Docker command and stdio protocol,
-but the Claude Desktop user interface remains a host-specific manual verification
-step. Connecting Claude is not required to view the seven included analyses.
+Automated tests cover the direct Docker command and stdio protocol. The
+connection status in Claude Desktop must still be checked manually on each host.
+Claude is not required to view the seven included analyses.
 
 ## Troubleshooting
 
