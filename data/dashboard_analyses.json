@@ -1,0 +1,208 @@
+{
+  "version": 1,
+  "analyses": [
+    {
+      "analysis_id": "overview",
+      "title": "Overview KPIs",
+      "requirement": "Overview KPIs for the school dashboard: total students, total courses, total grade records, average weighted final score (0.40*midterm + 0.60*final exam), and overall pass percentage (weighted final score >= 60).",
+      "sql": "SELECT st.total_students AS total_students, co.total_courses AS total_courses, gs.total_grade_records AS total_grade_records, gs.average_final_score AS average_final_score, gs.pass_percentage AS pass_percentage FROM (SELECT COUNT(*) AS total_students FROM pg.public.students) AS st CROSS JOIN (SELECT COUNT(*) AS total_courses FROM mysql.school.courses) AS co CROSS JOIN (SELECT COUNT(*) AS total_grade_records, ROUND(CAST(AVG(0.40 * g.midterm_score + 0.60 * g.final_exam_score) AS DECIMAL), 2) AS average_final_score, ROUND(CAST(100.0 * SUM(CASE WHEN (0.40 * g.midterm_score + 0.60 * g.final_exam_score) >= 60 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0) AS DECIMAL), 2) AS pass_percentage FROM mysql.school.grades AS g JOIN pg.public.students AS s ON s.student_id = g.student_id JOIN mysql.school.courses AS c ON c.course_id = g.course_id) AS gs",
+      "visualization": "kpi",
+      "required_columns": [
+        "total_students",
+        "total_courses",
+        "total_grade_records",
+        "average_final_score",
+        "pass_percentage"
+      ],
+      "result_columns": [
+        "total_students",
+        "total_courses",
+        "total_grade_records",
+        "average_final_score",
+        "pass_percentage"
+      ],
+      "referenced_tables": [
+        "mysql.school.courses",
+        "mysql.school.grades",
+        "pg.public.students"
+      ],
+      "display_order": 10,
+      "verified_at": "2026-10-08T22:37:50.545143+00:00",
+      "registration_method": "mcp_tool"
+    },
+    {
+      "analysis_id": "department_performance",
+      "title": "Department Performance",
+      "requirement": "Department performance for the school dashboard, grouped by the student's home department: distinct student count, grade record count, average weighted final score (0.40*midterm + 0.60*final exam), pass percentage (weighted score >= 60) and fail percentage (weighted score < 60).",
+      "sql": "SELECT d.department_name AS department_name, COUNT(DISTINCT s.student_id) AS student_count, COUNT(*) AS grade_count, ROUND(CAST(AVG(0.40 * g.midterm_score + 0.60 * g.final_exam_score) AS DECIMAL), 2) AS average_final_score, ROUND(CAST(100.0 * SUM(CASE WHEN (0.40 * g.midterm_score + 0.60 * g.final_exam_score) >= 60 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0) AS DECIMAL), 2) AS pass_percentage, ROUND(CAST(100.0 * SUM(CASE WHEN (0.40 * g.midterm_score + 0.60 * g.final_exam_score) < 60 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0) AS DECIMAL), 2) AS fail_percentage FROM mysql.school.grades AS g JOIN pg.public.students AS s ON s.student_id = g.student_id JOIN pg.public.departments AS d ON d.department_id = s.department_id GROUP BY d.department_name ORDER BY average_final_score ASC, d.department_name ASC",
+      "visualization": "horizontal_bar",
+      "required_columns": [
+        "department_name",
+        "student_count",
+        "grade_count",
+        "average_final_score",
+        "pass_percentage",
+        "fail_percentage"
+      ],
+      "result_columns": [
+        "department_name",
+        "student_count",
+        "grade_count",
+        "average_final_score",
+        "pass_percentage",
+        "fail_percentage"
+      ],
+      "referenced_tables": [
+        "mysql.school.grades",
+        "pg.public.departments",
+        "pg.public.students"
+      ],
+      "display_order": 20,
+      "verified_at": "2026-10-08T22:40:54.668804+00:00",
+      "registration_method": "mcp_tool"
+    },
+    {
+      "analysis_id": "grade_distribution",
+      "title": "Grade Distribution",
+      "requirement": "Distribution of weighted final scores (0.40*midterm + 0.60*final exam) across five mutually exclusive bands: Below 60, 60-69, 70-79, 80-89 and 90-100, with grade count, percentage of all grade records, and a sort order for display.",
+      "sql": "SELECT b.grade_band AS grade_band, COUNT(*) AS grade_count, ROUND(CAST(100.0 * COUNT(*) / NULLIF(SUM(COUNT(*)) OVER (), 0) AS DECIMAL), 2) AS percentage, b.sort_order AS sort_order FROM (SELECT CASE WHEN fs.final_score < 60 THEN 'Below 60' WHEN fs.final_score < 70 THEN '60-69' WHEN fs.final_score < 80 THEN '70-79' WHEN fs.final_score < 90 THEN '80-89' ELSE '90-100' END AS grade_band, CASE WHEN fs.final_score < 60 THEN 1 WHEN fs.final_score < 70 THEN 2 WHEN fs.final_score < 80 THEN 3 WHEN fs.final_score < 90 THEN 4 ELSE 5 END AS sort_order FROM (SELECT 0.40 * g.midterm_score + 0.60 * g.final_exam_score AS final_score FROM mysql.school.grades AS g) AS fs) AS b GROUP BY b.grade_band, b.sort_order ORDER BY b.sort_order ASC",
+      "visualization": "vertical_bar",
+      "required_columns": [
+        "grade_band",
+        "grade_count",
+        "percentage",
+        "sort_order"
+      ],
+      "result_columns": [
+        "grade_band",
+        "grade_count",
+        "percentage",
+        "sort_order"
+      ],
+      "referenced_tables": [
+        "mysql.school.grades"
+      ],
+      "display_order": 30,
+      "verified_at": "2026-10-08T22:43:51.520542+00:00",
+      "registration_method": "mcp_tool"
+    },
+    {
+      "analysis_id": "courses_needing_attention",
+      "title": "Courses Needing Attention",
+      "requirement": "The 12 lowest-performing courses by average weighted final score (0.40*midterm + 0.60*final exam), with owning department, distinct student count, average final score and pass percentage (weighted score >= 60). Sorted weakest first, with course_id as the deterministic tie-breaker.",
+      "sql": "SELECT c.course_id AS course_id, c.course_name AS course_name, d.department_name AS course_department, COUNT(DISTINCT g.student_id) AS student_count, ROUND(CAST(AVG(0.40 * g.midterm_score + 0.60 * g.final_exam_score) AS DECIMAL), 2) AS average_final_score, ROUND(CAST(100.0 * SUM(CASE WHEN (0.40 * g.midterm_score + 0.60 * g.final_exam_score) >= 60 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0) AS DECIMAL), 2) AS pass_percentage FROM mysql.school.grades AS g JOIN mysql.school.courses AS c ON c.course_id = g.course_id JOIN pg.public.departments AS d ON d.department_id = c.department_id GROUP BY c.course_id, c.course_name, d.department_name ORDER BY average_final_score ASC, c.course_id ASC LIMIT 12",
+      "visualization": "horizontal_bar",
+      "required_columns": [
+        "course_id",
+        "course_name",
+        "course_department",
+        "student_count",
+        "average_final_score",
+        "pass_percentage"
+      ],
+      "result_columns": [
+        "course_id",
+        "course_name",
+        "course_department",
+        "student_count",
+        "average_final_score",
+        "pass_percentage"
+      ],
+      "referenced_tables": [
+        "mysql.school.courses",
+        "mysql.school.grades",
+        "pg.public.departments"
+      ],
+      "display_order": 40,
+      "verified_at": "2026-10-08T22:49:27.519886+00:00",
+      "registration_method": "mcp_tool"
+    },
+    {
+      "analysis_id": "course_performance",
+      "title": "Full Course Performance",
+      "requirement": "Performance statistics for all 40 courses: owning department, distinct student count, average weighted final score (0.40*midterm + 0.60*final exam) and pass percentage (weighted score >= 60). Sorted by average final score ascending with course_id as the deterministic tie-breaker. No row limit.",
+      "sql": "SELECT c.course_id AS course_id, c.course_name AS course_name, d.department_name AS course_department, COUNT(DISTINCT g.student_id) AS student_count, ROUND(CAST(AVG(0.40 * g.midterm_score + 0.60 * g.final_exam_score) AS DECIMAL), 2) AS average_final_score, ROUND(CAST(100.0 * SUM(CASE WHEN (0.40 * g.midterm_score + 0.60 * g.final_exam_score) >= 60 THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0) AS DECIMAL), 2) AS pass_percentage FROM mysql.school.grades AS g JOIN mysql.school.courses AS c ON c.course_id = g.course_id JOIN pg.public.departments AS d ON d.department_id = c.department_id GROUP BY c.course_id, c.course_name, d.department_name ORDER BY average_final_score ASC, c.course_id ASC",
+      "visualization": "table",
+      "required_columns": [
+        "course_id",
+        "course_name",
+        "course_department",
+        "student_count",
+        "average_final_score",
+        "pass_percentage"
+      ],
+      "result_columns": [
+        "course_id",
+        "course_name",
+        "course_department",
+        "student_count",
+        "average_final_score",
+        "pass_percentage"
+      ],
+      "referenced_tables": [
+        "mysql.school.courses",
+        "mysql.school.grades",
+        "pg.public.departments"
+      ],
+      "display_order": 50,
+      "verified_at": "2026-10-08T22:51:59.273596+00:00",
+      "registration_method": "mcp_tool"
+    },
+    {
+      "analysis_id": "at_risk_students",
+      "title": "At-Risk Students",
+      "requirement": "Top 50 academically at-risk students: students with at least one failed grade (weighted score 0.40*midterm + 0.60*final exam below 60), showing home department, average weighted final score and number of failed courses. Ranked by failed-course count descending, then average final score ascending, then student ID ascending.",
+      "sql": "SELECT s.student_id AS student_id, CONCAT(s.first_name, ' ', s.last_name) AS student_name, d.department_name AS department_name, ROUND(CAST(AVG(0.40 * g.midterm_score + 0.60 * g.final_exam_score) AS DECIMAL), 2) AS average_final_score, SUM(CASE WHEN (0.40 * g.midterm_score + 0.60 * g.final_exam_score) < 60 THEN 1 ELSE 0 END) AS failing_courses FROM mysql.school.grades AS g JOIN pg.public.students AS s ON s.student_id = g.student_id JOIN pg.public.departments AS d ON d.department_id = s.department_id GROUP BY s.student_id, s.first_name, s.last_name, d.department_name HAVING SUM(CASE WHEN (0.40 * g.midterm_score + 0.60 * g.final_exam_score) < 60 THEN 1 ELSE 0 END) >= 1 ORDER BY failing_courses DESC, average_final_score ASC, s.student_id ASC LIMIT 50",
+      "visualization": "table",
+      "required_columns": [
+        "student_id",
+        "student_name",
+        "department_name",
+        "average_final_score",
+        "failing_courses"
+      ],
+      "result_columns": [
+        "student_id",
+        "student_name",
+        "department_name",
+        "average_final_score",
+        "failing_courses"
+      ],
+      "referenced_tables": [
+        "mysql.school.grades",
+        "pg.public.departments",
+        "pg.public.students"
+      ],
+      "display_order": 60,
+      "verified_at": "2026-10-08T22:54:03.081298+00:00",
+      "registration_method": "mcp_tool"
+    },
+    {
+      "analysis_id": "top_students",
+      "title": "Top Students",
+      "requirement": "Top 50 highest-performing students by average weighted final score (0.40*midterm + 0.60*final exam) across all their grade records, with home department. Ranked on the unrounded average descending, then student ID ascending; only the displayed average is rounded to two decimals.",
+      "sql": "SELECT s.student_id AS student_id, CONCAT(s.first_name, ' ', s.last_name) AS student_name, d.department_name AS department_name, ROUND(CAST(AVG(0.40 * g.midterm_score + 0.60 * g.final_exam_score) AS DECIMAL), 2) AS average_final_score FROM mysql.school.grades AS g JOIN pg.public.students AS s ON s.student_id = g.student_id JOIN pg.public.departments AS d ON d.department_id = s.department_id GROUP BY s.student_id, s.first_name, s.last_name, d.department_name ORDER BY AVG(0.40 * g.midterm_score + 0.60 * g.final_exam_score) DESC, s.student_id ASC LIMIT 50",
+      "visualization": "table",
+      "required_columns": [
+        "student_id",
+        "student_name",
+        "department_name",
+        "average_final_score"
+      ],
+      "result_columns": [
+        "student_id",
+        "student_name",
+        "department_name",
+        "average_final_score"
+      ],
+      "referenced_tables": [
+        "mysql.school.grades",
+        "pg.public.departments",
+        "pg.public.students"
+      ],
+      "display_order": 70,
+      "verified_at": "2026-10-08T22:55:59.339778+00:00",
+      "registration_method": "mcp_tool"
+    }
+  ]
+}

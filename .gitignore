@@ -1,0 +1,30 @@
+# Local configuration
+.env
+!.env.example
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+
+# Runtime data and logs
+# data/dashboard_analyses.json is intentionally versioned as the verified
+# Claude-generated dashboard snapshot.
+*.log
+data/*.lock
+data/*.tmp
+
+# Streamlit, operating-system, and editor files
+.streamlit/
+.DS_Store
+**/.DS_Store
+.idea/
+.vscode/
+*.swp
+*~

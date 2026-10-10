@@ -1,0 +1,11 @@
+[catalog_service]
+path = "/tmp/dataglot-meta.redb"
+
+[catalogs.pg]
+kind = "postgres"
+dsn_env = "PG_DSN"
+
+[catalogs.mysql]
+kind = "mysql"
+dsn_env = "MYSQL_DSN"
+

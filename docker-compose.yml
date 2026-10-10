@@ -1,0 +1,111 @@
+name: dataglot-mcp-school-assistant
+
+services:
+  postgres:
+    image: postgres:17@sha256:d74eeac9a635390a49bc21bd49fccd973de707e2a53a76ac49b552b8712ec46f
+    environment:
+      POSTGRES_USER: school_admin
+      POSTGRES_PASSWORD: school_admin_local_pass
+      POSTGRES_DB: school
+    ports:
+      - "127.0.0.1:${SCHOOL_POSTGRES_PORT:-5435}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/postgres_init.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/postgres_seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./database/postgres_permissions.sql:/docker-entrypoint-initdb.d/03-permissions.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U school_admin -d school"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  mysql:
+    image: mysql:8.4@sha256:0744ee5ef89ce6ccfa13de3e579fe6b9e27f93dd70da9c06d2c908b1b193fb8d
+    environment:
+      MYSQL_ROOT_PASSWORD: school_root_local_pass
+      MYSQL_DATABASE: school
+      MYSQL_USER: school_reader
+      MYSQL_PASSWORD: school_readonly_pass
+    ports:
+      - "127.0.0.1:${SCHOOL_MYSQL_PORT:-3309}:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./database/mysql_init.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./database/mysql_seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+      - ./database/mysql_permissions.sql:/docker-entrypoint-initdb.d/03-permissions.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uschool_reader -pschool_readonly_pass --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  dataglot:
+    image: ghcr.io/dataglotai/dataglot@sha256:e431c87bc1adf0784c047de1bddd4ae7146c7f147ac68c51df493e7ae522940c
+    restart: unless-stopped
+    environment:
+      PG_DSN: "host=postgres port=5432 user=school_reader password=school_readonly_pass dbname=school"
+      MYSQL_DSN: "mysql://school_reader:school_readonly_pass@mysql:3306/school"
+    ports:
+      - "127.0.0.1:${SCHOOL_DATAGLOT_PORT:-15433}:5432"
+    volumes:
+      - ./dataglot.toml:/etc/dataglot/dataglot.toml:ro
+    command: ["-c", "/etc/dataglot/dataglot.toml"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+
+  mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DATAGLOT_HOST: dataglot
+      DATAGLOT_PORT: "5432"
+      DATAGLOT_DATABASE: pg
+      DATAGLOT_USER: mcp_client
+      MCP_SEMANTIC_MODEL: /app/config/semantic_model.yaml
+      MCP_REGISTRY_PATH: /app/data/dashboard_analyses.json
+      MCP_REGISTRY_LOCK_PATH: /run/school-mcp/dashboard_analyses.lock
+      MCP_MAX_ROWS: "200"
+      MCP_HARD_MAX_ROWS: "1000"
+      MCP_QUERY_TIMEOUT_SECONDS: "20"
+    ports:
+      - "127.0.0.1:${SCHOOL_MCP_PORT:-18000}:8000"
+    volumes:
+      - ./data:/app/data
+      - registry_lock:/run/school-mcp
+    depends_on:
+      dataglot:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8000), 3).close()"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: dashboard/Dockerfile
+    environment:
+      MCP_URL: http://mcp:8000/mcp
+    ports:
+      - "127.0.0.1:${SCHOOL_DASHBOARD_PORT:-8502}:8501"
+    depends_on:
+      mcp:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+volumes:
+  postgres_data:
+  mysql_data:
+  registry_lock:

@@ -1,0 +1,212 @@
+version: 1
+name: school_federation
+description: Federated school-management sample data exposed through DataGlot 0.5.2.
+
+query_rules:
+  dialect: PostgreSQL-compatible SQL accepted by DataGlot
+  qualification: Always use the full catalog.schema.table name shown below.
+  read_only: Only one SELECT or read-only WITH statement is permitted.
+  final_score_expression: "0.40 * g.midterm_score + 0.60 * g.final_exam_score"
+  pass_condition: "final_score >= 60"
+  fail_condition: "final_score < 60"
+  notes:
+    - Use pg.public.students for student attributes and mysql.school.grades for scores.
+    - Cross-source relationships are logical and must be expressed explicitly in JOIN clauses.
+    - A grade row represents one student-course enrollment in one academic year and semester.
+    - Use NULLIF in divisions when a zero-row group is possible.
+    - Return stable, descriptive snake_case column aliases for dashboard analyses.
+
+catalogs:
+  pg:
+    source: PostgreSQL 17
+    schema: public
+    description: Student and department master data.
+    tables:
+      departments:
+        qualified_name: pg.public.departments
+        description: The five academic departments used by students and courses.
+        primary_key: [department_id]
+        columns:
+          department_id:
+            type: SMALLINT
+            description: Stable department identifier.
+          department_name:
+            type: VARCHAR(100)
+            description: Human-readable unique department name.
+      students:
+        qualified_name: pg.public.students
+        description: One row per student.
+        primary_key: [student_id]
+        columns:
+          student_id:
+            type: INTEGER
+            description: Stable student identifier.
+          first_name:
+            type: VARCHAR(50)
+            description: Student first name.
+          last_name:
+            type: VARCHAR(50)
+            description: Student last name.
+          department_id:
+            type: SMALLINT
+            description: Student's home department.
+          enrollment_year:
+            type: SMALLINT
+            description: Calendar year in which the student enrolled.
+          status:
+            type: VARCHAR(20)
+            description: One of active, graduated, on_leave, or probation.
+  mysql:
+    source: MySQL 8.4
+    schema: school
+    description: Course catalog and grade facts.
+    tables:
+      courses:
+        qualified_name: mysql.school.courses
+        description: One row per course, including owning department and credits.
+        primary_key: [course_id]
+        columns:
+          course_id:
+            type: INTEGER
+            description: Stable course identifier.
+          course_name:
+            type: VARCHAR(120)
+            description: Human-readable unique course name.
+          department_id:
+            type: INTEGER
+            description: Logical reference to pg.public.departments.department_id.
+          credits:
+            type: TINYINT
+            description: Course credit value from 1 through 6.
+      grades:
+        qualified_name: mysql.school.grades
+        description: Student-course grade records. Scores are stored separately from student master data.
+        primary_key: [grade_id]
+        columns:
+          grade_id:
+            type: BIGINT
+            description: Stable grade-record identifier.
+          student_id:
+            type: INTEGER
+            description: Logical reference to pg.public.students.student_id.
+          course_id:
+            type: INTEGER
+            description: Reference to mysql.school.courses.course_id.
+          academic_year:
+            type: VARCHAR(9)
+            description: Academic-year label. The sample dataset uses 2024-2025.
+          semester:
+            type: VARCHAR(10)
+            description: Fall or Spring.
+          midterm_score:
+            type: DECIMAL(5,2)
+            description: Midterm score from 0 through 100; contributes 40 percent to final_score.
+          final_exam_score:
+            type: DECIMAL(5,2)
+            description: Final-exam score from 0 through 100; contributes 60 percent to final_score.
+
+relationships:
+  - name: student_department
+    from: pg.public.students.department_id
+    to: pg.public.departments.department_id
+    cardinality: many-to-one
+    cross_source: false
+  - name: student_grades
+    from: mysql.school.grades.student_id
+    to: pg.public.students.student_id
+    cardinality: many-to-one
+    cross_source: true
+  - name: grade_course
+    from: mysql.school.grades.course_id
+    to: mysql.school.courses.course_id
+    cardinality: many-to-one
+    cross_source: false
+  - name: course_department
+    from: mysql.school.courses.department_id
+    to: pg.public.departments.department_id
+    cardinality: many-to-one
+    cross_source: true
+
+dataset:
+  deterministic_seed: 20260924
+  expected_counts:
+    pg.public.departments: 5
+    pg.public.students: 1000
+    mysql.school.courses: 40
+    mysql.school.grades: 6000
+  semester_values: [Fall, Spring]
+  academic_year_values: [2024-2025]
+
+dashboard_contracts:
+  overview:
+    title: Overview KPIs
+    visualization: kpi
+    display_order: 10
+    required_columns:
+      - total_students
+      - total_courses
+      - total_grade_records
+      - average_final_score
+      - pass_percentage
+  department_performance:
+    title: Department Performance
+    visualization: horizontal_bar
+    display_order: 20
+    required_columns:
+      - department_name
+      - student_count
+      - grade_count
+      - average_final_score
+      - pass_percentage
+      - fail_percentage
+  grade_distribution:
+    title: Grade Distribution
+    visualization: vertical_bar
+    display_order: 30
+    required_columns:
+      - grade_band
+      - grade_count
+      - percentage
+      - sort_order
+  courses_needing_attention:
+    title: Courses Needing Attention
+    visualization: horizontal_bar
+    display_order: 40
+    required_columns:
+      - course_id
+      - course_name
+      - course_department
+      - student_count
+      - average_final_score
+      - pass_percentage
+  course_performance:
+    title: Full Course Performance
+    visualization: table
+    display_order: 50
+    required_columns:
+      - course_id
+      - course_name
+      - course_department
+      - student_count
+      - average_final_score
+      - pass_percentage
+  at_risk_students:
+    title: At-Risk Students
+    visualization: table
+    display_order: 60
+    required_columns:
+      - student_id
+      - student_name
+      - department_name
+      - average_final_score
+      - failing_courses
+  top_students:
+    title: Top Students
+    visualization: table
+    display_order: 70
+    required_columns:
+      - student_id
+      - student_name
+      - department_name
+      - average_final_score
+
